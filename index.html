@@ -1764,7 +1764,7 @@ function GasMeter({ value, isActive }) {
     // On part de la valeur totale en centièmes
     let v = cents;
     // Position dans la chaîne : 0-5 = int, 6-7 = dec
-    const pos = digitIndex < 6 ? (5 - digitIndex) : (7 - digitIndex);
+    const pos = 7 - digitIndex;
     // pos=0 = centièmes, pos=1 = dixièmes, pos=2 = unités, etc.
     const divisor = Math.pow(10, pos);
     const fractional = (v / divisor) % 10;
