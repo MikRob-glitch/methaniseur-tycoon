@@ -1,16 +1,12 @@
-const CACHE_NAME = 'methan-tycoon-v5';
-const ASSETS = ['./index.html', './manifest.json', './icon.svg'];
+const CACHE_NAME = 'methan-tycoon-v7';
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
-  self.skipWaiting();
-});
-
+self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(
-    ks.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-  )));
-  self.clients.claim();
+  e.waitUntil(
+    caches.keys().then(ks => Promise.all(
+      ks.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+    )).then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', e => {
