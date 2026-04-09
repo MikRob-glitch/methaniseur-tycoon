@@ -72,7 +72,7 @@ const fetchRegionalStats = () => {
 const fetchIndividualLeaderboard = () => {
   if (!SUPABASE_KEY || SUPABASE_URL.includes("VOTRE_PROJECT_ID")) return Promise.resolve(null);
   return fetch(
-    SUPABASE_URL + "/rest/v1/players?select=username,region,score_network,score_gnv,is_connected&is_connected=eq.true&order=score_network.desc,score_gnv.desc&limit=20",
+    SUPABASE_URL + "/rest/v1/players?select=username,region,score_network,score_gnv,is_connected,buffer,epurateur,compresseur,digesteurs&order=is_connected.desc,score_network.desc,buffer.desc&limit=30",
     { headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY } }
   ).then(r => r.json())
   .then(rows => rows.map(r => ({
@@ -81,7 +81,12 @@ const fetchIndividualLeaderboard = () => {
     score:  (r.score_network || 0) + (r.score_gnv || 0),
     scoreNet: r.score_network || 0,
     scoreGnv: r.score_gnv || 0,
-  })).sort((a,b) => b.score - a.score))
+    connected: !!r.is_connected,
+    buffer: r.buffer || 0,
+    epurateur: !!r.epurateur,
+    compresseur: !!r.compresseur,
+    digesteurs: r.digesteurs || 1,
+  })))
   .catch(() => null);
 };
 
@@ -516,9 +521,9 @@ function Game({ username, region }) {
         const hasMe = rows.some(r => r.name === username);
         const merged = hasMe ? rows : [
           ...rows,
-          { name: username, region, score: bm + gnvBm, scoreNet: bm, scoreGnv: gnvBm }
-        ].sort((a,b) => b.score - a.score);
-        setLb(merged.slice(0, 15));
+          { name: username, region, score: bm + gnvBm, scoreNet: bm, scoreGnv: gnvBm, connected: injected, buffer, epurateur: epurateurOk, compresseur: compresseurOk, digesteurs }
+        ];
+        setLb(merged.slice(0, 20));
       }
       setLbLastUp(Date.now());
       setLbLoading(false);
@@ -596,9 +601,17 @@ function Game({ username, region }) {
   const bmRef       = useRef(bm);
   const gnvBmRef    = useRef(gnvBm);
   const injectedRef = useRef(injected);
+  const bufferRef   = useRef(buffer);
+  const epuRef      = useRef(epurateurOk);
+  const compRef     = useRef(compresseurOk);
+  const digesRef    = useRef(digesteurs);
   useEffect(() => { bmRef.current = bm; }, [bm]);
   useEffect(() => { gnvBmRef.current = gnvBm; }, [gnvBm]);
   useEffect(() => { injectedRef.current = injected; }, [injected]);
+  useEffect(() => { bufferRef.current = buffer; }, [buffer]);
+  useEffect(() => { epuRef.current = epurateurOk; }, [epurateurOk]);
+  useEffect(() => { compRef.current = compresseurOk; }, [compresseurOk]);
+  useEffect(() => { digesRef.current = digesteurs; }, [digesteurs]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -609,6 +622,10 @@ function Game({ username, region }) {
         score_network: bmRef.current,
         score_gnv: gnvBmRef.current,
         is_connected: injectedRef.current,
+        buffer: bufferRef.current,
+        epurateur: epuRef.current,
+        compresseur: compRef.current,
+        digesteurs: digesRef.current,
       });
     }, 30000);
     return () => clearInterval(id);
@@ -784,6 +801,10 @@ function Game({ username, region }) {
         score_network: bm+buffer,
         score_gnv: 0,
         is_connected: true,
+        buffer: 0,
+        epurateur: true,
+        compresseur: true,
+        digesteurs,
         connected_at: new Date().toISOString(),
       });
     });
@@ -2652,20 +2673,51 @@ function RankingTab({
                     )}
                   </div>
 
-                  {/* Score + breakdown */}
-                  <div style={{textAlign:"right",flexShrink:0,zIndex:1}}>
-                    <div style={{fontSize:"13px",fontWeight:800,color:isMe?"#4A9EDB":"rgba(255,255,255,.7)"}}>
-                      {fmt(entry.score || 0)}
-                    </div>
-                    {/* Mini barre bicolore réseau / GNV */}
-                    <div style={{width:"48px",height:"4px",borderRadius:"2px",background:"rgba(255,255,255,.08)",marginTop:"3px",overflow:"hidden",display:"flex"}}>
-                      <div style={{height:"100%",width:`${netPct}%`,background:"#4A9EDB",borderRadius:"2px 0 0 2px"}}/>
-                      <div style={{height:"100%",flex:1,background:"#4ADB94",borderRadius:"0 2px 2px 0"}}/>
-                    </div>
-                    <div style={{display:"flex",gap:"4px",justifyContent:"flex-end",marginTop:"2px"}}>
-                      <span style={{fontSize:"7px",color:"rgba(74,158,219,.6)"}}>🔌{fmt(entry.scoreNet || 0)}</span>
-                      <span style={{fontSize:"7px",color:"rgba(74,200,120,.6)"}}>⛽{fmt(entry.scoreGnv || 0)}</span>
-                    </div>
+                  {/* Score ou progression */}
+                  <div style={{textAlign:"right",flexShrink:0,zIndex:1,minWidth:"80px"}}>
+                    {entry.connected ? (<>
+                      <div style={{fontSize:"13px",fontWeight:800,color:isMe?"#4A9EDB":"rgba(255,255,255,.7)"}}>
+                        {fmt(entry.score || 0)}
+                      </div>
+                      {/* Mini barre bicolore réseau / GNV */}
+                      <div style={{width:"48px",height:"4px",borderRadius:"2px",background:"rgba(255,255,255,.08)",marginTop:"3px",overflow:"hidden",display:"flex",marginLeft:"auto"}}>
+                        <div style={{height:"100%",width:`${netPct}%`,background:"#4A9EDB",borderRadius:"2px 0 0 2px"}}/>
+                        <div style={{height:"100%",flex:1,background:"#4ADB94",borderRadius:"0 2px 2px 0"}}/>
+                      </div>
+                      <div style={{display:"flex",gap:"4px",justifyContent:"flex-end",marginTop:"2px"}}>
+                        <span style={{fontSize:"7px",color:"rgba(74,158,219,.6)"}}>🔌{fmt(entry.scoreNet || 0)}</span>
+                        <span style={{fontSize:"7px",color:"rgba(74,200,120,.6)"}}>⛽{fmt(entry.scoreGnv || 0)}</span>
+                      </div>
+                    </>) : (<>
+                      {/* Progression steps */}
+                      <div style={{display:"flex",gap:"3px",justifyContent:"flex-end",marginBottom:"3px"}}>
+                        {[
+                          {icon:"🫙",label:"Cuve",ok:true},
+                          {icon:"🧪",label:"Épur.",ok:entry.epurateur},
+                          {icon:"🔩",label:"Comp.",ok:entry.compresseur},
+                          {icon:"🏗️",label:"Inject.",ok:false},
+                        ].map((s,si) => (
+                          <div key={si} style={{
+                            width:"18px",height:"18px",borderRadius:"5px",
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            fontSize:"10px",
+                            background:s.ok?"rgba(74,158,219,.2)":"rgba(255,255,255,.05)",
+                            border:s.ok?"1px solid rgba(74,158,219,.4)":"1px solid rgba(255,255,255,.1)",
+                            opacity:s.ok?1:0.35,
+                          }} title={s.label}>{s.icon}</div>
+                        ))}
+                      </div>
+                      {/* Buffer progress bar */}
+                      <div style={{width:"80px",height:"6px",borderRadius:"3px",background:"rgba(255,255,255,.08)",overflow:"hidden",marginLeft:"auto"}}>
+                        <div style={{height:"100%",borderRadius:"3px",
+                          width:`${Math.min(100,(entry.buffer||0)/500*100)}%`,
+                          background:"linear-gradient(90deg,#2A7DBB,#E8A020)",
+                          transition:"width .5s"}}/>
+                      </div>
+                      <div style={{fontSize:"7px",color:"rgba(255,255,255,.4)",marginTop:"2px",textAlign:"right"}}>
+                        {fmt(entry.buffer||0)} / {fmt(500)}
+                      </div>
+                    </>)}
                   </div>
                 </div>
               );
@@ -2674,7 +2726,7 @@ function RankingTab({
 
           {leaderboard.length === 0 && !lbLoading && (
             <div style={{textAlign:"center",padding:"40px 20px",color:"rgba(255,255,255,.35)",fontSize:"13px"}}>
-              Aucun joueur raccordé pour le moment.
+              Aucun joueur enregistré pour le moment.
             </div>
           )}
           {lbLoading && leaderboard.length === 0 && (
