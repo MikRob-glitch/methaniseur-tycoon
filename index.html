@@ -701,36 +701,25 @@ function Game({ username, region }) {
         if (f<=0) return 0;
         const burn=burnRateEff*dt;
         const actual=Math.min(f,burn);
-        setMo(m=>m+actual);
+        const produced = actual * 0.006;
+        if (produced > 0) {
+          if (injected) {
+            if (gnvStations>0 && gnvSplit>0) {
+              const toGnv = produced*(gnvSplit/100);
+              setBm(b=>b+(produced-toGnv));
+              setGnvBm(b=>b+toGnv);
+            } else {
+              setBm(b=>b+produced);
+            }
+          } else {
+            setBuffer(b=>Math.min(INJECTION_THRESHOLD,b+produced));
+          }
+        }
         return f-actual;
       });
     },50);
     return ()=>clearInterval(id);
-  },[burnRateEff]);
-
-  useEffect(()=>{
-    const id=setInterval(()=>{
-      setMo(m=>{
-        if (m<1) return m;
-        const n=Math.floor(m/1);
-        const produced=n*0.006;
-        if (injected) {
-          if (gnvStations>0 && gnvSplit>0) {
-            const toGnv = produced*(gnvSplit/100);
-            const toNet = produced-toGnv;
-            setBm(b=>b+toNet);
-            setGnvBm(b=>b+toGnv);
-          } else {
-            setBm(b=>b+produced);
-          }
-        } else {
-          setBuffer(b=>Math.min(INJECTION_THRESHOLD,b+produced));
-        }
-        return m-n*100;
-      });
-    },400);
-    return ()=>clearInterval(id);
-  },[injected,gnvStations,gnvSplit]);
+  },[burnRateEff,injected,gnvStations,gnvSplit]);
 
   useEffect(()=>{
     const rate=isDigesting?Math.max(150,900-chargePct*700):1200;
@@ -988,7 +977,7 @@ function Game({ username, region }) {
                 {label:"Upgrades",    icon:"⬆️",color:"#AA7700",dim:fillRate===0},
                 {label:"Bac",         icon:"🗑️",color:"#4A9EDB",dim:stock<1},
                 {label:"Digesteur",   icon:"⚗️",color:"#6DB5EC",dim:charge<1},
-                {label:"MO",          icon:"♻️",color:"#A8CCEC",dim:mo<50},
+                {label:"Biogaz",     icon:"♻️",color:"#A8CCEC",dim:charge<1},
                 {label:"Cuve tampon", icon:"🫙",color:"#3AACCC",dim:buffer<1&&!injected},
                 {label:"Réseau GRDF", icon:"🔌",color:"#4A9EDB",dim:!injected},
               ].map((s,i)=>(
