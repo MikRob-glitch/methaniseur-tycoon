@@ -1073,10 +1073,112 @@ function Game({ username, region }) {
               <PipelineGraphic injected={injected} epurateurOk={epurateurOk} compresseurOk={compresseurOk} unlockAnim={unlockAnim} bufferPct={bufferPct} buffer={buffer}/>
             </div>
             {!injected&&(
-              <div style={{padding:"4px 12px 14px",display:"flex",flexDirection:"column",gap:"8px"}}>
-                <UnlockButton label="🧪 Débloquer l'Épurateur" sublabel="Débloque : Biodéchets + Boues STEP" condition={canUnlockEpurateur} done={epurateurOk} animating={unlockAnim==="epurateur"} locked={epurateurOk} reqLabel={!epurateurOk&&!canUnlockEpurateur?`${fmt(Math.max(0,200-buffer))} m³ requis`:null} onClick={handleUnlockEpurateur} color="#5544CC"/>
-                <UnlockButton label="🔩 Débloquer le Compresseur" sublabel="Débloque : Déchets industriels" condition={canUnlockCompresseur} done={compresseurOk} animating={unlockAnim==="compresseur"} locked={!epurateurOk} reqLabel={!compresseurOk&&epurateurOk&&!canUnlockCompresseur?`${fmt(Math.max(0,350-buffer))} m³ requis`:!epurateurOk?"Épurateur requis":null} onClick={handleUnlockCompresseur} color="#CC7700"/>
-                <UnlockButton label="🏗️ Raccorder au réseau GRDF" sublabel={`500 m³ + Épurateur + Compresseur + ⚙️ Déchets industriels${owned[4]<1?" ← manquant":""}`} condition={canConnect} done={false} animating={unlockAnim==="injection"} locked={!compresseurOk} reqLabel={!compresseurOk?"Compresseur requis":owned[4]<1?"⚙️ Déchets industriels requis":buffer<INJECTION_THRESHOLD?`${fmt(Math.max(0,INJECTION_THRESHOLD-buffer))} m³ requis`:null} onClick={handleConnect} color="#2A7DBB" highlight/>
+              <div style={{padding:"4px 12px 14px",display:"flex",flexDirection:"column",gap:"10px"}}>
+                {/* ÉTAPE 1 — Épurateur */}
+                {(() => {
+                  const done = epurateurOk;
+                  const pct = done ? 100 : Math.min(100, buffer/200*100);
+                  const ready = canUnlockEpurateur;
+                  return (
+                    <div style={{padding:"12px 14px",borderRadius:"12px",
+                      background:done?"rgba(85,68,204,.12)":ready?"rgba(85,68,204,.08)":"rgba(255,255,255,.03)",
+                      border:`1px solid ${done?"rgba(85,68,204,.4)":ready?"rgba(85,68,204,.5)":"rgba(255,255,255,.08)"}`,
+                      animation:ready&&!done?"pulse 2s ease infinite":"none",
+                    }}>
+                      <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"6px"}}>
+                        <span style={{fontSize:"8px",fontWeight:900,color:done?"#a78bfa":"rgba(255,255,255,.35)",background:done?"rgba(85,68,204,.3)":"rgba(255,255,255,.08)",padding:"2px 7px",borderRadius:"10px"}}>ÉTAPE 1</span>
+                        <span style={{fontSize:"12px",fontWeight:800,color:done?"#a78bfa":"rgba(255,255,255,.7)"}}>🧪 Épurateur</span>
+                        {done && <span style={{fontSize:"10px",marginLeft:"auto"}}>✅</span>}
+                      </div>
+                      {!done && (
+                        <>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"4px"}}>
+                            <span style={{fontSize:"10px",color:"rgba(255,255,255,.45)"}}>Condition : <strong style={{color:"#a78bfa"}}>{fmt(200)}</strong> dans la cuve</span>
+                            <span style={{fontSize:"11px",fontWeight:800,color:ready?"#a78bfa":"rgba(255,255,255,.5)"}}>{Math.round(pct)}%</span>
+                          </div>
+                          <div style={{height:"8px",borderRadius:"4px",background:"rgba(255,255,255,.06)",overflow:"hidden"}}>
+                            <div style={{height:"100%",borderRadius:"4px",width:`${pct}%`,background:ready?"linear-gradient(90deg,#5544CC,#a78bfa)":"linear-gradient(90deg,#5544CC55,#5544CC)",transition:"width .5s",boxShadow:ready?"0 0 8px rgba(85,68,204,.5)":"none"}}/>
+                          </div>
+                          <div style={{fontSize:"9px",color:"rgba(255,255,255,.35)",marginTop:"4px"}}>🎁 Débloque : Biodéchets restauration + Boues de STEP</div>
+                          {ready && <button onClick={handleUnlockEpurateur} style={{width:"100%",marginTop:"8px",padding:"10px",borderRadius:"10px",border:"none",background:"linear-gradient(135deg,#5544CC,#7c3aed)",color:"white",fontSize:"13px",fontWeight:800,cursor:"pointer",boxShadow:"0 4px 16px rgba(85,68,204,.5)",animation:"pulse 1.5s ease infinite"}}>🧪 Débloquer l'Épurateur !</button>}
+                        </>
+                      )}
+                      {done && <div style={{fontSize:"10px",color:"rgba(167,139,250,.6)"}}>Biodéchets restauration + Boues de STEP débloqués</div>}
+                    </div>
+                  );
+                })()}
+
+                {/* ÉTAPE 2 — Compresseur */}
+                {(() => {
+                  const done = compresseurOk;
+                  const blocked = !epurateurOk;
+                  const pct = done ? 100 : blocked ? 0 : Math.min(100, buffer/350*100);
+                  const ready = canUnlockCompresseur;
+                  return (
+                    <div style={{padding:"12px 14px",borderRadius:"12px",
+                      background:done?"rgba(204,119,0,.1)":ready?"rgba(204,119,0,.08)":"rgba(255,255,255,.03)",
+                      border:`1px solid ${done?"rgba(204,119,0,.4)":ready?"rgba(204,119,0,.5)":"rgba(255,255,255,.08)"}`,
+                      opacity:blocked?.45:1,
+                      animation:ready&&!done?"pulse 2s ease infinite":"none",
+                    }}>
+                      <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"6px"}}>
+                        <span style={{fontSize:"8px",fontWeight:900,color:done?"#E8A020":"rgba(255,255,255,.35)",background:done?"rgba(204,119,0,.3)":"rgba(255,255,255,.08)",padding:"2px 7px",borderRadius:"10px"}}>ÉTAPE 2</span>
+                        <span style={{fontSize:"12px",fontWeight:800,color:done?"#E8A020":"rgba(255,255,255,.7)"}}>🔩 Compresseur</span>
+                        {done && <span style={{fontSize:"10px",marginLeft:"auto"}}>✅</span>}
+                      </div>
+                      {!done && (
+                        <>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"6px"}}>
+                            <span style={{fontSize:"9px",padding:"2px 8px",borderRadius:"8px",background:epurateurOk?"rgba(85,68,204,.2)":"rgba(255,68,68,.1)",color:epurateurOk?"#a78bfa":"#E05858",fontWeight:700}}>{epurateurOk?"✅":"❌"} Épurateur</span>
+                            <span style={{fontSize:"9px",padding:"2px 8px",borderRadius:"8px",background:buffer>=350?"rgba(204,119,0,.2)":"rgba(255,255,255,.06)",color:buffer>=350?"#E8A020":"rgba(255,255,255,.4)",fontWeight:700}}>{buffer>=350?"✅":"⏳"} {fmt(350)} dans la cuve</span>
+                          </div>
+                          {!blocked && (
+                            <div style={{height:"8px",borderRadius:"4px",background:"rgba(255,255,255,.06)",overflow:"hidden",marginBottom:"4px"}}>
+                              <div style={{height:"100%",borderRadius:"4px",width:`${pct}%`,background:ready?"linear-gradient(90deg,#CC7700,#E8A020)":"linear-gradient(90deg,#CC770055,#CC7700)",transition:"width .5s",boxShadow:ready?"0 0 8px rgba(204,119,0,.5)":"none"}}/>
+                            </div>
+                          )}
+                          <div style={{fontSize:"9px",color:"rgba(255,255,255,.35)"}}>🎁 Débloque : Déchets industriels</div>
+                          {ready && <button onClick={handleUnlockCompresseur} style={{width:"100%",marginTop:"8px",padding:"10px",borderRadius:"10px",border:"none",background:"linear-gradient(135deg,#CC7700,#E8A020)",color:"white",fontSize:"13px",fontWeight:800,cursor:"pointer",boxShadow:"0 4px 16px rgba(204,119,0,.5)",animation:"pulse 1.5s ease infinite"}}>🔩 Débloquer le Compresseur !</button>}
+                        </>
+                      )}
+                      {done && <div style={{fontSize:"10px",color:"rgba(232,160,32,.6)"}}>Déchets industriels débloqués</div>}
+                    </div>
+                  );
+                })()}
+
+                {/* ÉTAPE 3 — Raccordement */}
+                {(() => {
+                  const blocked = !compresseurOk;
+                  const hasIndus = owned[4] >= 1;
+                  const pct = blocked ? 0 : Math.min(100, buffer/INJECTION_THRESHOLD*100);
+                  const ready = canConnect;
+                  return (
+                    <div style={{padding:"12px 14px",borderRadius:"12px",
+                      background:ready?"rgba(42,125,187,.1)":"rgba(255,255,255,.03)",
+                      border:`1px solid ${ready?"rgba(42,125,187,.55)":"rgba(255,255,255,.08)"}`,
+                      opacity:blocked?.45:1,
+                      animation:ready?"pulse 2s ease infinite":"none",
+                    }}>
+                      <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"6px"}}>
+                        <span style={{fontSize:"8px",fontWeight:900,color:"rgba(255,255,255,.35)",background:ready?"rgba(42,125,187,.3)":"rgba(255,255,255,.08)",padding:"2px 7px",borderRadius:"10px"}}>ÉTAPE 3</span>
+                        <span style={{fontSize:"12px",fontWeight:800,color:ready?"#F5BE50":"rgba(255,255,255,.7)"}}>🏗️ Raccordement GRDF</span>
+                      </div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"6px"}}>
+                        <span style={{fontSize:"9px",padding:"2px 8px",borderRadius:"8px",background:epurateurOk?"rgba(85,68,204,.2)":"rgba(255,68,68,.1)",color:epurateurOk?"#a78bfa":"#E05858",fontWeight:700}}>{epurateurOk?"✅":"❌"} Épurateur</span>
+                        <span style={{fontSize:"9px",padding:"2px 8px",borderRadius:"8px",background:compresseurOk?"rgba(204,119,0,.2)":"rgba(255,68,68,.1)",color:compresseurOk?"#E8A020":"#E05858",fontWeight:700}}>{compresseurOk?"✅":"❌"} Compresseur</span>
+                        <span style={{fontSize:"9px",padding:"2px 8px",borderRadius:"8px",background:hasIndus?"rgba(74,158,219,.2)":"rgba(255,68,68,.1)",color:hasIndus?"#6DB5EC":"#E05858",fontWeight:700}}>{hasIndus?"✅":"❌"} ⚙️ Déchets indus.</span>
+                        <span style={{fontSize:"9px",padding:"2px 8px",borderRadius:"8px",background:buffer>=INJECTION_THRESHOLD?"rgba(245,190,80,.2)":"rgba(255,255,255,.06)",color:buffer>=INJECTION_THRESHOLD?"#F5BE50":"rgba(255,255,255,.4)",fontWeight:700}}>{buffer>=INJECTION_THRESHOLD?"✅":"⏳"} {fmt(INJECTION_THRESHOLD)} m³</span>
+                      </div>
+                      {!blocked && (
+                        <div style={{height:"8px",borderRadius:"4px",background:"rgba(255,255,255,.06)",overflow:"hidden",marginBottom:"4px"}}>
+                          <div style={{height:"100%",borderRadius:"4px",width:`${pct}%`,background:ready?"linear-gradient(90deg,#C07800,#E8A020,#F5D888)":"linear-gradient(90deg,#2A7DBB55,#2A7DBB)",transition:"width .5s",boxShadow:ready?"0 0 12px rgba(232,160,32,.5)":"none",animation:ready?"bufferPulse 1s ease infinite":"none"}}/>
+                        </div>
+                      )}
+                      <div style={{fontSize:"9px",color:"rgba(255,255,255,.35)"}}>🎁 Débloque : CIVE + Parc biogaz+ et injection réseau</div>
+                      {ready && <button onClick={handleConnect} style={{width:"100%",marginTop:"8px",padding:"12px",borderRadius:"10px",border:"none",background:"linear-gradient(135deg,#C07800,#E8A020,#F5BE50)",color:"white",fontSize:"14px",fontWeight:900,cursor:"pointer",boxShadow:"0 4px 20px rgba(232,160,32,.6)",animation:"pulse 1.5s ease infinite"}}>🏗️ Raccorder au réseau GRDF !</button>}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             {injected&&(
@@ -2894,6 +2996,44 @@ function RankingTab({
                         boxShadow:`0 0 8px ${rg?.color||"#4A9EDB"}55`
                       }}/>
                     </div>
+
+                    {/* Joueurs de cette région */}
+                    {(() => {
+                      const regionPlayers = leaderboard.filter(p => p.region === rs.region);
+                      if (regionPlayers.length === 0) return null;
+                      return (
+                        <div style={{marginTop:"10px",paddingTop:"8px",borderTop:"1px solid rgba(255,255,255,.06)",position:"relative",zIndex:1}}>
+                          <div style={{fontSize:"8px",color:"rgba(255,255,255,.35)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:"6px"}}>Joueurs · {regionPlayers.length}</div>
+                          <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
+                            {regionPlayers.map((p, pi) => {
+                              const isMe = p.name === username;
+                              return (
+                                <div key={p.name} style={{
+                                  display:"flex",alignItems:"center",gap:"6px",
+                                  padding:"5px 8px",borderRadius:"8px",
+                                  background:isMe?"rgba(74,158,219,.1)":"rgba(255,255,255,.02)",
+                                  border:isMe?"1px solid rgba(74,158,219,.25)":"1px solid transparent",
+                                }}>
+                                  <span style={{fontSize:"10px",fontWeight:700,color:"rgba(255,255,255,.35)",width:"16px",textAlign:"center"}}>{pi+1}</span>
+                                  <span style={{fontSize:"11px",fontWeight:isMe?800:500,color:isMe?"#EDF4FF":"rgba(255,255,255,.65)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
+                                  {isMe && <span style={{fontSize:"7px",background:"rgba(74,158,219,.2)",color:"#6DB5EC",padding:"1px 4px",borderRadius:"4px",fontWeight:700,flexShrink:0}}>MOI</span>}
+                                  {p.connected ? (
+                                    <span style={{fontSize:"10px",fontWeight:700,color:rg?.light||"#6DB5EC",flexShrink:0}}>{fmt(p.score)}</span>
+                                  ) : (
+                                    <div style={{display:"flex",alignItems:"center",gap:"3px",flexShrink:0}}>
+                                      <div style={{width:"40px",height:"4px",borderRadius:"2px",background:"rgba(255,255,255,.08)",overflow:"hidden"}}>
+                                        <div style={{height:"100%",borderRadius:"2px",width:`${Math.min(100,(p.buffer||0)/500*100)}%`,background:`linear-gradient(90deg,${rg?.color||"#2A7DBB"},#E8A020)`}}/>
+                                      </div>
+                                      <span style={{fontSize:"8px",color:"rgba(255,255,255,.35)"}}>{Math.round((p.buffer||0)/500*100)}%</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
