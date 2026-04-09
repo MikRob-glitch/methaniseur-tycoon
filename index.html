@@ -550,12 +550,47 @@ function Game({ username, region }) {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify({...stateRef.current,lastSaved:Date.now(),username,region})); } catch{}
   }, [SAVE_KEY]);
   useEffect(() => { const id=setInterval(saveGame,15000); return ()=>clearInterval(id); }, [saveGame]);
+  const lastTickRef = useRef(Date.now());
   useEffect(() => {
-    const onHide = () => saveGame();
-    window.addEventListener('beforeunload', onHide);
-    document.addEventListener('visibilitychange', onHide);
-    return () => { window.removeEventListener('beforeunload',onHide); document.removeEventListener('visibilitychange',onHide); };
-  }, [saveGame]);
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden') {
+        saveGame();
+        lastTickRef.current = Date.now();
+      } else {
+        // ── CATCH-UP on resume ──
+        const elapsed = (Date.now() - lastTickRef.current) / 1000;
+        lastTickRef.current = Date.now();
+        if (elapsed < 5) return; // ignore tiny pauses
+        const fr = owned.reduce((a,q,i) => a+UPGRADES[i].baseFill*q, 0) * (tractorGnv ? 1.15 : 1);
+        if (fr <= 0) return;
+        // Stock catch-up
+        const sMax = owned.reduce((a,q,i) => a+UPGRADES[i].bagCap*q, 0);
+        setStock(s => Math.min(sMax, s + fr * elapsed));
+        // Charge→MO→BM catch-up
+        setCharge(ch => {
+          if (ch <= 0) return 0;
+          const brEff = fr * digesteurs;
+          const burned = Math.min(ch, brEff * elapsed);
+          const produced = burned * 0.006;
+          if (injected) {
+            if (gnvStations > 0 && gnvSplit > 0) {
+              const toGnv = produced * (gnvSplit / 100);
+              setBm(b => b + (produced - toGnv));
+              setGnvBm(b => b + toGnv);
+            } else {
+              setBm(b => b + produced);
+            }
+          } else {
+            setBuffer(b => Math.min(INJECTION_THRESHOLD, b + produced));
+          }
+          return ch - burned;
+        });
+      }
+    };
+    window.addEventListener('beforeunload', saveGame);
+    document.addEventListener('visibilitychange', onVisChange);
+    return () => { window.removeEventListener('beforeunload', saveGame); document.removeEventListener('visibilitychange', onVisChange); };
+  }, [saveGame, owned, tractorGnv, digesteurs, injected, gnvStations, gnvSplit]);
 
   // ── UPSERT SUPABASE toutes les 30s ────────────────────────────────────────
   const bmRef       = useRef(bm);
