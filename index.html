@@ -658,19 +658,31 @@ function Game({ username, region }) {
 
   const showNotif = msg => { setNotif(msg); setTimeout(()=>setNotif(null),4000); };
 
-  // ── TICKS ──────────────────────────────────────────────────────────────────
+  // ── TICKS (timestamp-based for sleep/background catch-up) ────────────────
+  const stockTickRef = useRef(Date.now());
   useEffect(()=>{
     if (fillRate<=0) return;
-    const id=setInterval(()=>setStock(s=>Math.min(stockMax,s+(fillRate*fillPenalty)/20)),50);
+    stockTickRef.current = Date.now();
+    const id=setInterval(()=>{
+      const now = Date.now();
+      const dt = Math.min((now - stockTickRef.current) / 1000, 3600); // cap 1h
+      stockTickRef.current = now;
+      setStock(s=>Math.min(stockMax, s + fillRate * fillPenalty * dt));
+    },50);
     return ()=>clearInterval(id);
   },[fillRate,fillPenalty]);
 
+  const chargeTickRef = useRef(Date.now());
   useEffect(()=>{
     if (burnRateEff<=0) return;
+    chargeTickRef.current = Date.now();
     const id=setInterval(()=>{
+      const now = Date.now();
+      const dt = Math.min((now - chargeTickRef.current) / 1000, 3600);
+      chargeTickRef.current = now;
       setCharge(f=>{
         if (f<=0) return 0;
-        const burn=burnRateEff/20;
+        const burn=burnRateEff*dt;
         const actual=Math.min(f,burn);
         setMo(m=>m+actual);
         return f-actual;
