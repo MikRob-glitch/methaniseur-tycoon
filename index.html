@@ -1739,25 +1739,90 @@ function TractorSystem({ fillRate, owned }) {
 // ─── GAS METER ────────────────────────────────────────────────────────────────
 function GasMeter({ value, isActive }) {
   const[displayVal,setDisplayVal]=useState(0);
-  const[prevDigits,setPrevDigits]=useState(null);
   useEffect(()=>{
     let frame;
     const animate=()=>{setDisplayVal(prev=>{const diff=value-prev;if(Math.abs(diff)<0.001)return value;const step=isActive?Math.max(0.002,diff*0.08):diff*0.12;return prev+step;});frame=requestAnimationFrame(animate);};
     frame=requestAnimationFrame(animate);return()=>cancelAnimationFrame(frame);
   },[value,isActive]);
-  const total=Math.max(0,displayVal),cents=Math.round(total*100),intPart=Math.floor(cents/100),decPart=cents%100,intStr=String(intPart).padStart(6,"0"),decStr=String(decPart).padStart(2,"0"),allDigits=intStr+decStr;
-  useEffect(()=>{setPrevDigits(allDigits);},[]);
-  const changed=prevDigits?allDigits.split("").map((d,i)=>d!==prevDigits[i]):[];
-  const firstNonZero=allDigits.split("").findIndex((d,i)=>i<6&&d!=="0"),sigStart=firstNonZero===-1?5:firstNonZero;
+
+  const total=Math.max(0,displayVal);
+  const cents=Math.round(total*100);
+  const intPart=Math.floor(cents/100);
+  const decPart=cents%100;
+  const intStr=String(intPart).padStart(6,"0");
+  const decStr=String(decPart).padStart(2,"0");
+  const firstNonZero=intStr.split("").findIndex(d=>d!=="0");
+  const sigStart=firstNonZero===-1?5:firstNonZero;
+
+  // Pour l'effet rouleau : on calcule la position fractionnaire de chaque chiffre
+  // Le dernier chiffre des décimales tourne vite, les suivants cascadent
+  const DIGIT_H = 34;
+  const digits10 = ["0","1","2","3","4","5","6","7","8","9"];
+
+  // Calcul des positions fractionnaires pour chaque roue
+  const getWheelOffset = (digitIndex) => {
+    // On part de la valeur totale en centièmes
+    let v = cents;
+    // Position dans la chaîne : 0-5 = int, 6-7 = dec
+    const pos = digitIndex < 6 ? (5 - digitIndex) : (7 - digitIndex);
+    // pos=0 = centièmes, pos=1 = dixièmes, pos=2 = unités, etc.
+    const divisor = Math.pow(10, pos);
+    const fractional = (v / divisor) % 10;
+    return fractional;
+  };
+
+  const RollingDigit = ({ index, isDecimal }) => {
+    const offset = getWheelOffset(isDecimal ? 6 + index : index);
+    const isLeading = !isDecimal && index < sigStart;
+    const baseColor = isDecimal ? "#3AACCC" : "#6DB5EC";
+    const bgColor = isDecimal ? "rgba(74,188,223,.08)" : (isLeading ? "rgba(0,0,0,.2)" : (index >= 4 ? "rgba(74,158,219,.07)" : "transparent"));
+
+    return (
+      <div style={{
+        width:"22px",height:`${DIGIT_H}px`,position:"relative",overflow:"hidden",
+        borderRight: isDecimal 
+          ? (index===0?"1px solid rgba(74,188,223,.15)":"none")
+          : (index===5?"2px solid rgba(74,158,219,.32)":"1px solid rgba(74,158,219,.09)"),
+        background: bgColor,
+      }}>
+        {/* Colonne de chiffres qui roule */}
+        <div style={{
+          position:"absolute",left:0,right:0,
+          transform:`translateY(${-offset * DIGIT_H}px)`,
+          transition: isActive ? "none" : "transform 0.3s ease",
+          willChange:"transform",
+        }}>
+          {/* On double la séquence 0-9-0 pour gérer le wrap-around */}
+          {[...digits10, ...digits10].map((d, di) => (
+            <div key={di} style={{
+              width:"22px",height:`${DIGIT_H}px`,
+              display:"flex",alignItems:"center",justifyContent:"center",
+            }}>
+              <span style={{
+                fontFamily:"'Courier New',monospace",fontSize:"19px",fontWeight:900,lineHeight:1,
+                color: isLeading ? "rgba(74,158,219,.15)" : baseColor,
+                textShadow: isLeading ? "none" : `0 0 8px ${isDecimal?"rgba(56,189,248,.5)":"rgba(74,158,219,.6)"}`,
+              }}>{d}</span>
+            </div>
+          ))}
+        </div>
+        {/* Reflet vitré */}
+        <div style={{position:"absolute",inset:0,
+          background:"linear-gradient(180deg,rgba(255,255,255,.06) 0%,transparent 30%,transparent 70%,rgba(0,0,0,.15) 100%)",
+          pointerEvents:"none",zIndex:2}}/>
+      </div>
+    );
+  };
+
   return(
     <div style={{marginTop:"14px",padding:"10px 14px",borderRadius:"14px",background:"rgba(11,22,35,.78)",border:`1px solid ${isActive?"rgba(74,158,219,.32)":"rgba(74,158,219,.12)"}`,display:"flex",alignItems:"center",gap:"12px",animation:isActive?"meterGlow 2.5s ease infinite":"none",transition:"border-color .5s"}}>
       <div style={{width:"42px",height:"42px",borderRadius:"50%",background:isActive?"radial-gradient(circle at 35% 30%,#1a3d1a,#0A1828)":"radial-gradient(circle at 35% 30%,#0d1a0d,#050a14)",border:`2px solid ${isActive?"rgba(74,158,219,.44)":"rgba(74,158,219,.14)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"20px",flexShrink:0,boxShadow:isActive?"0 0 12px rgba(74,158,219,.28)":"none",transition:"all .5s"}}>{isActive?"⛽":"💤"}</div>
       <div style={{flex:1}}>
         <div style={{fontSize:"9px",color:"rgba(255,255,255,.48)",textTransform:"uppercase",letterSpacing:".1em",marginBottom:"5px"}}>Compteur biométhane</div>
         <div style={{display:"inline-flex",alignItems:"stretch",background:"#060e06",border:"1.5px solid rgba(74,158,219,.28)",borderRadius:"8px",overflow:"hidden",boxShadow:"inset 0 2px 8px rgba(11,22,35,.92)"}}>
-          {intStr.split("").map((digit,i)=>{const isLeading=i<sigStart,isChanging=changed[i];return (<div key={`i${i}`} style={{width:"22px",height:"34px",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",borderRight:i===5?"2px solid rgba(74,158,219,.32)":"1px solid rgba(74,158,219,.09)",background:isLeading?"rgba(0,0,0,.2)":i>=4?"rgba(74,158,219,.07)":"transparent"}}><div style={{position:"absolute",top:0,left:0,right:0,height:"35%",background:"linear-gradient(180deg,rgba(255,255,255,.035),transparent)",pointerEvents:"none"}}/><span style={{fontFamily:"'Courier New',monospace",fontSize:"19px",fontWeight:900,lineHeight:1,color:isLeading?"rgba(74,158,219,.2)":isChanging?"#A8CCEC":"#6DB5EC",textShadow:isLeading?"none":"0 0 8px rgba(74,158,219,.6)",animation:isChanging&&!isLeading?"digitRollUp .28s ease":"none",display:"block"}}>{digit}</span></div>);})}
-          <div style={{width:"10px",height:"34px",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(74,158,219,.05)",borderRight:"1px solid rgba(74,158,219,.09)"}}><span style={{fontSize:"16px",fontWeight:900,color:"rgba(74,158,219,.6)",fontFamily:"monospace"}}>.</span></div>
-          {decStr.split("").map((digit,i)=>{const idx=6+i,isChanging=changed[idx];return (<div key={`d${i}`} style={{width:"22px",height:"34px",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden",background:"rgba(74,188,223,.08)",borderRight:i===0?"1px solid rgba(74,188,223,.15)":"none"}}><div style={{position:"absolute",top:0,left:0,right:0,height:"35%",background:"linear-gradient(180deg,rgba(255,255,255,.09),transparent)"}}/><span style={{fontFamily:"'Courier New',monospace",fontSize:"19px",fontWeight:900,lineHeight:1,color:"#3AACCC",textShadow:"0 0 8px rgba(56,189,248,.5)",animation:isChanging?"digitRollDown .18s ease":"none",display:"block"}}>{digit}</span></div>);})}
+          {[0,1,2,3,4,5].map(i => <RollingDigit key={`i${i}`} index={i} isDecimal={false} />)}
+          <div style={{width:"10px",height:`${DIGIT_H}px`,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(74,158,219,.05)",borderRight:"1px solid rgba(74,158,219,.09)"}}><span style={{fontSize:"16px",fontWeight:900,color:"rgba(74,158,219,.6)",fontFamily:"monospace"}}>.</span></div>
+          {[0,1].map(i => <RollingDigit key={`d${i}`} index={i} isDecimal={true} />)}
           <div style={{padding:"0 8px",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(11,22,35,.55)"}}><span style={{fontSize:"9px",fontWeight:700,letterSpacing:".06em",color:"rgba(255,255,255,.45)",textTransform:"uppercase"}}>m³</span></div>
         </div>
         <div style={{marginTop:"4px",fontSize:"9px",color:isActive?"rgba(255,255,255,.48)":"rgba(255,255,255,.3)",display:"flex",alignItems:"center",gap:"5px"}}>
