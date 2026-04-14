@@ -1,1 +1,24 @@
-if(!self.define){let e,s={};const i=(i,n)=>(i=new URL(i+".js",n).href,s[i]||new Promise(s=>{if("document"in self){const e=document.createElement("script");e.src=i,e.onload=s,document.head.appendChild(e)}else e=i,importScripts(i),s()}).then(()=>{let e=s[i];if(!e)throw new Error(`Module ${i} didn’t register its module`);return e}));self.define=(n,t)=>{const r=e||("document"in self?document.currentScript.src:"")||location.href;if(s[r])return;let o={};const c=e=>i(e,r),u={module:{uri:r},exports:o,require:c};s[r]=Promise.all(n.map(e=>u[e]||c(e))).then(e=>(t(...e),o))}}define(["./workbox-6bfcbdaa"],function(e){"use strict";self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"registerSW.js",revision:"39052a892850b863a9d1e2d9656eaec3"},{url:"index.html",revision:"1fbfe94e3553fcc358ec57173c4e5795"},{url:"assets/index-C3RJz_fs.js",revision:null},{url:"manifest.webmanifest",revision:"b138de2ecdca5caf763e0a6b5963eb61"}],{}),e.cleanupOutdatedCaches(),e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL("index.html"))),e.registerRoute(/^https:\/\/.*\.supabase\.co\/.*/,new e.NetworkFirst({cacheName:"supabase-cache",networkTimeoutSeconds:5,plugins:[]}),"GET")});
+const CACHE_NAME = 'methaniseur-tycoon-v13';
+const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-512.png'];
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  if (e.request.url.includes('supabase.co')) return; // toujours live pour Supabase
+  e.respondWith(
+    caches.match(e.request).then(cached => cached || fetch(e.request))
+  );
+});
