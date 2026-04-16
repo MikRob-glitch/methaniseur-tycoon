@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reset cache</title>
+  <style>
+    body { background:#060E15; color:#4A9EDB; font-family:sans-serif;
+           display:flex; align-items:center; justify-content:center;
+           min-height:100vh; flex-direction:column; gap:16px; text-align:center; padding:20px; }
+    .msg { font-size:14px; color:rgba(255,255,255,.6); }
+  </style>
+</head>
+<body>
+  <div style="font-size:48px">⚗️</div>
+  <div style="font-size:18px;font-weight:800">Nettoyage du cache…</div>
+  <div class="msg" id="status">Désinstallation du service worker…</div>
+  <script>
+    async function reset() {
+      const status = document.getElementById('status');
+
+      // 1. Désinstalle tous les service workers
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const r of regs) {
+          await r.unregister();
+        }
+        status.textContent = regs.length + ' service worker(s) supprimé(s). Purge du cache…';
+      }
+
+      // 2. Vide tous les caches
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+        status.textContent = 'Cache purgé (' + keys.length + ' entrée(s)). Redirection…';
+      }
+
+      // 3. Redirige vers le jeu avec cache-buster
+      await new Promise(r => setTimeout(r, 1500));
+      window.location.href = './index.html?v=' + Date.now();
+    }
+
+    reset().catch(err => {
+      document.getElementById('status').textContent = 'Erreur: ' + err.message;
+    });
+  </script>
+</body>
+</html>
