@@ -1,9 +1,16 @@
-const CACHE_NAME = 'methaniseur-tycoon-v13';
-const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-512.png'];
+const CACHE_NAME = 'methaniseur-v14';
+const ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+];
 
 self.addEventListener('install', e => {
+  self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))
   );
 });
 
@@ -16,8 +23,6 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('supabase.co')) return; // toujours live pour Supabase
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
