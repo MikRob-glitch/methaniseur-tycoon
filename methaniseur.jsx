@@ -3638,3 +3638,9 @@ function RankingTab({
   );
 }
 
+
+// ─── MOUNT ────────────────────────────────────────────────────────────────────
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+document.getElementById('splash').style.display = 'none';
+document.getElementById('root').style.display = 'block';
