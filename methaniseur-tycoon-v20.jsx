@@ -764,6 +764,9 @@ function Game({ username, region, maia }) {
   };
   const offlineGains = saved ? calcOffline(saved) : null;
   const [offlineModal, setOfflineModal] = useState(!!offlineGains);
+  const [cloudOfflineGains, setCloudOfflineGains] = useState(null);
+  // Gains affichés dans le modal (prio localStorage, fallback cloud)
+  const displayedGains = offlineGains || cloudOfflineGains;
 
   // ── ÉTAT ────────────────────────────────────────────────────────────────────
   const [tab,     setTab]     = useState("game");
@@ -776,9 +779,9 @@ function Game({ username, region, maia }) {
   });
   const [buffer,  setBuffer]  = useState(() => {
     const base = saved?.buffer ?? 1;
-    const withOffline = (!offlineGains || offlineGains.injected)
+    const withOffline = (!offlineGains || displayedGains.injected)
       ? base
-      : Math.min(INJECTION_THRESHOLD, base + (offlineGains.produced || 0));
+      : Math.min(INJECTION_THRESHOLD, base + (displayedGains.produced || 0));
     // Anti-deadlock : si aucun intrant acheté et pas encore raccordé, garantit au moins 1 m³
     const savedOwned   = saved?.owned   ?? [0,0,0,0,0,0,0];
     const savedInjected= saved?.injected ?? false;
@@ -834,24 +837,53 @@ function Game({ username, region, maia }) {
       const remoteMs  = d.last_saved ? new Date(d.last_saved).getTime() : 0;
       const localMs   = saved?.lastSaved || 0;
       if (remoteMs >= localMs) {
-        // Supabase est plus récent → on applique
-        if (d.mo          != null) setMo(d.mo);
-        if (d.score_network != null) setBm(d.score_network);
-        if (d.buffer      != null) setBuffer(d.buffer);
+        // Supabase est plus récent (ou égal) → on applique AVEC catch-up offline
+        // Bug v19 : écraser avec d.stock/d.charge/d.bm annulait les gains calculés
+        // depuis localStorage. Fix : recalculer les gains offline depuis remoteMs.
+        const cloudOwned = Array.isArray(d.owned) ? d.owned : (d.owned ? JSON.parse(d.owned) : [0,0,0,0,0,0,0]);
+        const cloudSv = {
+          lastSaved:   remoteMs,
+          owned:       cloudOwned,
+          stock:       d.stock || 0,
+          charge:      d.charge || 0,
+          digesteurs:  d.digesteurs || 1,
+          injected:    !!d.is_connected,
+          gnvStations: d.gnv_stations || 0,
+          gnvSplit:    d.gnv_split || 20,
+          autoDump:    !!d.auto_dump,
+        };
+        const cg = calcOffline(cloudSv); // cloud gains
+
+        if (d.mo            != null) setMo(d.mo);
+        if (d.score_network != null) setBm((d.score_network || 0) + (cg?.bmGained || 0));
+        if (d.gnv_bm        != null) setGnvBm((d.gnv_bm || 0) + (cg?.gnvBmGained || 0));
+        if (d.euros         != null) setEuros((d.euros || 0) + (cg?.eurosGained || 0));
+        if (d.buffer        != null) {
+          const b = d.buffer || 0;
+          setBuffer(cg && !cg.injected
+            ? Math.min(INJECTION_THRESHOLD, b + (cg.produced || 0))
+            : b);
+        }
         if (d.tut_step    != null) setTutStep(d.tut_step);
-        if (d.owned       != null) setOwned(Array.isArray(d.owned) ? d.owned : JSON.parse(d.owned));
-        if (d.stock       != null) setStock(d.stock);
-        if (d.charge      != null) setCharge(d.charge);
+        if (d.owned       != null) setOwned(cloudOwned);
+        // stock / charge : valeurs post-catch-up
+        if (d.stock       != null) setStock(cg?.remainingStock ?? d.stock);
+        if (d.charge      != null) setCharge(cg?.remainingCharge ?? d.charge);
         if (d.epurateur   != null) setEpurateurOk(!!d.epurateur);
         if (d.compresseur != null) setCompresseurOk(!!d.compresseur);
         if (d.is_connected != null) setInjected(!!d.is_connected);
         if (d.gnv_stations != null) setGnvStations(d.gnv_stations);
         if (d.gnv_split   != null) setGnvSplit(d.gnv_split);
-        if (d.gnv_bm      != null) setGnvBm(d.gnv_bm);
         if (d.tractor_gnv != null) setTractorGnv(!!d.tractor_gnv);
         if (d.digesteurs  != null) setDigesteurs(d.digesteurs);
-        if (d.euros       != null) setEuros(d.euros);
         if (d.auto_dump   != null) setAutoDump(!!d.auto_dump);
+
+        // Si localStorage n'avait pas de gains mais le cloud en a (cross-device) →
+        // afficher le modal avec les gains cloud
+        if (cg && !offlineGains) {
+          setCloudOfflineGains(cg);
+          setOfflineModal(true);
+        }
       }
     }).finally(() => setCloudSynced(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1414,37 +1446,37 @@ function Game({ username, region, maia }) {
       `}</style>
 
       {/* Modal hors-ligne */}
-      {offlineModal && offlineGains && (
+      {offlineModal && displayedGains && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:"20px"}} onClick={()=>setOfflineModal(false)}>
           <div style={{background:isL?"#FFFFFF":"#162436",border:"1px solid "+(isL?"rgba(25,75,150,.2)":"rgba(74,158,219,.3)"),borderRadius:"20px",padding:"28px 24px",maxWidth:"320px",width:"100%",animation:"riseIn .4s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{textAlign:"center",marginBottom:"16px"}}>
               <div style={{fontSize:"40px",marginBottom:"8px"}}>⏰</div>
               <div style={{fontSize:"17px",fontWeight:800,color:isL?"#0C1A2E":"#EDF4FF"}}>
-                {offlineGains.produced >= 0.01 ? "Production hors-ligne" : "Approvisionnement hors-ligne"}
+                {displayedGains.produced >= 0.01 ? "Production hors-ligne" : "Approvisionnement hors-ligne"}
               </div>
               <div style={{fontSize:"12px",marginTop:"4px",color:isL?"#3A5270":"rgba(160,200,240,.65)"}}>
-                Absence : {offlineGains.elapsedSec>=3600?`${Math.floor(offlineGains.elapsedSec/3600)}h ${Math.round((offlineGains.elapsedSec%3600)/60)}min`:`${Math.round(offlineGains.elapsedSec/60)} min`}
+                Absence : {displayedGains.elapsedSec>=3600?`${Math.floor(displayedGains.elapsedSec/3600)}h ${Math.round((displayedGains.elapsedSec%3600)/60)}min`:`${Math.round(displayedGains.elapsedSec/60)} min`}
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:"8px",marginBottom:"16px"}}>
-              {offlineGains.produced >= 0.01 && (
+              {displayedGains.produced >= 0.01 && (
                 <div style={{background:"rgba(74,158,219,.1)",border:"1px solid rgba(74,158,219,.25)",borderRadius:"12px",padding:"14px 16px",textAlign:"center"}}>
                   <div style={{fontSize:"11px",fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(160,200,240,.65)",marginBottom:"4px"}}>Biométhane produit</div>
-                  <div style={{fontSize:"26px",fontWeight:800,color:"#4A9EDB"}}>+{fmt(offlineGains.produced)}</div>
-                  <div style={{fontSize:"10px",marginTop:"3px",color:"rgba(120,165,210,.42)"}}>→ {offlineGains.injected?"réseau GRDF":"cuve tampon"}</div>
+                  <div style={{fontSize:"26px",fontWeight:800,color:"#4A9EDB"}}>+{fmt(displayedGains.produced)}</div>
+                  <div style={{fontSize:"10px",marginTop:"3px",color:"rgba(120,165,210,.42)"}}>→ {displayedGains.injected?"réseau GRDF":"cuve tampon"}</div>
                 </div>
               )}
-              {offlineGains.eurosGained > 0 && (
+              {displayedGains.eurosGained > 0 && (
                 <div style={{background:"rgba(232,160,32,.1)",border:"1px solid rgba(232,160,32,.25)",borderRadius:"12px",padding:"12px 16px",textAlign:"center"}}>
                   <div style={{fontSize:"10px",fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(232,160,32,.65)",marginBottom:"3px"}}>Revenus GRDF</div>
-                  <div style={{fontSize:"22px",fontWeight:800,color:"#E8A020"}}>+{fmtEuro(offlineGains.eurosGained)}</div>
+                  <div style={{fontSize:"22px",fontWeight:800,color:"#E8A020"}}>+{fmtEuro(displayedGains.eurosGained)}</div>
                 </div>
               )}
-              {offlineGains.stockGained >= 1 && (
+              {displayedGains.stockGained >= 1 && (
                 <div style={{background:"rgba(39,168,90,.08)",border:"1px solid rgba(39,168,90,.2)",borderRadius:"12px",padding:"12px 16px",textAlign:"center"}}>
                   <div style={{fontSize:"10px",fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(39,168,90,.65)",marginBottom:"3px"}}>📦 Bac d'intrants chargé</div>
-                  <div style={{fontSize:"22px",fontWeight:800,color:"#4ADB94"}}>+{fmtT(offlineGains.stockGained)}</div>
-                  {offlineGains.produced < 0.01 && (
+                  <div style={{fontSize:"22px",fontWeight:800,color:"#4ADB94"}}>+{fmtT(displayedGains.stockGained)}</div>
+                  {displayedGains.produced < 0.01 && (
                     <div style={{fontSize:"10px",marginTop:"3px",color:"rgba(120,165,210,.42)"}}>Pense à déverser dans le digesteur 🛢️</div>
                   )}
                 </div>
