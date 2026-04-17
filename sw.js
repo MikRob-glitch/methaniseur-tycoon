@@ -1,4 +1,4 @@
-const CACHE_NAME = 'methaniseur-tycoon-v20-1';
+const CACHE_NAME = 'methaniseur-tycoon-v22';
 
 self.addEventListener('install', e => {
   // Pas de pré-cache agressif — on laisse le fetch handler remplir au fur et à mesure
