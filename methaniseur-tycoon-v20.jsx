@@ -789,6 +789,32 @@ function Game({ username, region, maia }) {
   // Modal n'apparaît que pour les absences notables (>= 30s) pour éviter le spam
   const [offlineModal, setOfflineModal] = useState(!!offlineGains && offlineGains.elapsedSec >= 30);
   const [cloudOfflineGains, setCloudOfflineGains] = useState(null);
+  // ── DEBUG : capture trace du dernier calcOffline pour diagnostic ────────
+  const [debugInfo, setDebugInfo] = useState(() => {
+    const lines = [];
+    const now = Date.now();
+    lines.push(`Boot: ${new Date(now).toLocaleTimeString()}`);
+    if (!saved) {
+      lines.push('localStorage: VIDE');
+    } else {
+      const elapsed = saved.lastSaved ? ((now - saved.lastSaved) / 1000).toFixed(1) : 'N/A';
+      lines.push(`lastSaved: ${saved.lastSaved ? new Date(saved.lastSaved).toLocaleTimeString() : 'NULL'}`);
+      lines.push(`elapsed: ${elapsed}s`);
+      lines.push(`saved.stock: ${saved.stock?.toFixed(1) ?? 'N/A'}`);
+      lines.push(`saved.charge: ${saved.charge?.toFixed(1) ?? 'N/A'}`);
+      lines.push(`saved.owned: [${(saved.owned||[]).join(',')}]`);
+    }
+    if (offlineGains) {
+      lines.push(`---calcOffline OK---`);
+      lines.push(`stockGained: +${offlineGains.stockGained?.toFixed(1)}`);
+      lines.push(`remainingStock: ${offlineGains.remainingStock?.toFixed(1)}`);
+      lines.push(`produced: ${offlineGains.produced?.toFixed(2)}`);
+    } else {
+      lines.push(`calcOffline: NULL`);
+    }
+    return lines.join('\n');
+  });
+  const [debugOpen, setDebugOpen] = useState(false);
   // Gains affichés dans le modal (prio localStorage, fallback cloud)
   const displayedGains = offlineGains || cloudOfflineGains;
 
@@ -1490,6 +1516,51 @@ function Game({ username, region, maia }) {
       `}</style>
 
       {/* Modal hors-ligne */}
+      {/* ── DEBUG PANEL ── (à retirer après diagnostic) ── */}
+      <button
+        onClick={() => setDebugOpen(o => !o)}
+        style={{position:"fixed",bottom:"80px",right:"10px",zIndex:600,
+                width:"40px",height:"40px",borderRadius:"50%",
+                background:"rgba(232,160,32,.85)",border:"none",
+                color:"#0B1623",fontSize:"18px",fontWeight:900,cursor:"pointer",
+                boxShadow:"0 4px 12px rgba(0,0,0,.4)"}}>
+        🐞
+      </button>
+      {debugOpen && (
+        <div style={{position:"fixed",inset:"20px",zIndex:700,
+                     background:"#0B1623",border:"2px solid #E8A020",borderRadius:"12px",
+                     padding:"16px",overflow:"auto",
+                     fontFamily:"monospace",fontSize:"11px",color:"#EDF4FF",
+                     whiteSpace:"pre-wrap",lineHeight:1.5}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:"12px"}}>
+            <strong style={{color:"#E8A020",fontSize:"14px"}}>🐞 DEBUG PANEL</strong>
+            <button onClick={()=>setDebugOpen(false)} style={{background:"none",border:"none",color:"#E05858",fontSize:"18px",cursor:"pointer"}}>✕</button>
+          </div>
+          <div><strong style={{color:"#E8A020"}}>--- INIT TRACE ---</strong>{"\n"}{debugInfo}</div>
+          <div style={{marginTop:"12px"}}><strong style={{color:"#E8A020"}}>--- LIVE STATE ---</strong>{"\n"}
+            stock: {stock.toFixed(2)} / {stockMax.toFixed(0)} ({stockMax>0?(stock/stockMax*100).toFixed(1):0}%){"\n"}
+            charge: {charge.toFixed(2)} / {chargeMaxEff.toFixed(0)}{"\n"}
+            fillRate: {fillRate.toFixed(2)} m³/s{"\n"}
+            fillPenalty: {fillPenalty.toFixed(2)}{"\n"}
+            owned: [{owned.join(',')}]{"\n"}
+            buffer: {buffer.toFixed(2)}{"\n"}
+            cloudSynced: {String(cloudSynced)}{"\n"}
+          </div>
+          <button onClick={()=>{
+            const sv = JSON.parse(localStorage.getItem(SAVE_KEY)||'null');
+            const now = Date.now();
+            const elapsed = sv?.lastSaved ? ((now-sv.lastSaved)/1000).toFixed(1) : 'N/A';
+            alert(`localStorage NOW:\nlastSaved: ${sv?.lastSaved ? new Date(sv.lastSaved).toLocaleTimeString() : 'NULL'}\nelapsed: ${elapsed}s\nstock: ${sv?.stock?.toFixed(1)}\ncharge: ${sv?.charge?.toFixed(1)}\nowned: [${(sv?.owned||[]).join(',')}]`);
+          }} style={{marginTop:"12px",padding:"8px 14px",background:"#4A9EDB",color:"#fff",border:"none",borderRadius:"6px",cursor:"pointer",fontWeight:700}}>📋 Lire localStorage NOW</button>
+          <button onClick={()=>{
+            // Force save
+            const ev = new Event('manual-save');
+            saveGame();
+            alert('saveGame() appelé');
+          }} style={{marginTop:"12px",marginLeft:"8px",padding:"8px 14px",background:"#27a85a",color:"#fff",border:"none",borderRadius:"6px",cursor:"pointer",fontWeight:700}}>💾 Force save</button>
+        </div>
+      )}
+
       {offlineModal && displayedGains && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,padding:"20px"}} onClick={()=>setOfflineModal(false)}>
           <div style={{background:isL?"#FFFFFF":"#162436",border:"1px solid "+(isL?"rgba(25,75,150,.2)":"rgba(74,158,219,.3)"),borderRadius:"20px",padding:"28px 24px",maxWidth:"320px",width:"100%",animation:"riseIn .4s ease"}} onClick={e=>e.stopPropagation()}>
