@@ -1,26 +1,3 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-  <meta name="theme-color" content="#0B1623"/>
-  <meta name="description" content="Méthaniseur Tycoon – Challenge interne GRDF 2025"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <link rel="manifest" href="manifest.json"/>
-  <title>Méthaniseur Tycoon – GRDF</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js" crossorigin></script>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    html,body,#root{height:100%;width:100%;overflow:hidden}
-    body{background:#0B1623;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel" data-presets="react">
 // Source de vérité — Méthaniseur Tycoon v16
 // Workflow : modifier ce fichier → envoyer à Claude → Claude génère index.html compilé
 const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
@@ -479,7 +456,7 @@ const AUTH_LABEL = {
 };
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
-function App() {
+export default function App() {
   const savedLogin = (() => { try { const s = localStorage.getItem('mt_login_v2'); return s ? JSON.parse(s) : null; } catch { return null; } })();
   // "verifying" = on a un localStorage mais on doit valider en Supabase avant d'ouvrir le jeu
   const [screen,   setScreen]  = useState(savedLogin ? "verifying" : "login");
@@ -4320,16 +4297,3 @@ function RankingTab({
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  React.createElement(ThemeProvider, null, React.createElement(App, null))
-);
-  </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js', { scope: './' });
-      });
-    }
-  </script>
-</body>
-</html>
