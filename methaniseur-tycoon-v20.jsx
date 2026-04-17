@@ -709,9 +709,30 @@ function Game({ username, region, maia }) {
     const burnRateEff    = fr * nDig;
     const dynamicCME     = Math.max(CHARGE_MAX, Math.ceil(fr * 90)) * nDig;
 
-    // ── Stock : accumulation offline ──────────────────────────────────────────
-    const savedStock  = sv.stock || 0;
-    const stockGained = Math.min(Math.max(0, stockMaxOff - savedStock), fr * elapsedSec);
+    // ── Stock : accumulation offline avec régulation 80% (cohérence live) ────
+    // En live, dès que stock >= 80% du cap, le débit chute à 40% (fillPenalty).
+    // On reproduit exactement ce comportement ici pour éviter le remplissage trop
+    // rapide hors ligne.
+    const savedStock     = sv.stock || 0;
+    const stockGained    = (() => {
+      if (stockMaxOff <= 0 || savedStock >= stockMaxOff) return 0;
+      const threshold80 = stockMaxOff * 0.8;
+      let s = savedStock;
+      let remaining = elapsedSec;
+      // Phase 1 : remplissage plein débit jusqu'à 80%
+      if (s < threshold80) {
+        const toThreshold = threshold80 - s;
+        const tFull       = toThreshold / fr;
+        if (tFull >= remaining) return Math.min(stockMaxOff - savedStock, fr * remaining);
+        s = threshold80;
+        remaining -= tFull;
+      }
+      // Phase 2 : remplissage régulé à 40% jusqu'au cap
+      const toCap     = stockMaxOff - s;
+      const tRegulated = toCap / (fr * 0.4);
+      const filledReg  = remaining >= tRegulated ? toCap : fr * 0.4 * remaining;
+      return (s - savedStock) + filledReg;
+    })();
     const stockAfterFill = savedStock + stockGained;
 
     // ── Digesteur : matière disponible à brûler ───────────────────────────────
@@ -1021,51 +1042,72 @@ function Game({ username, region, maia }) {
   useEffect(() => { chargeRef.current = charge; }, [charge]);
 
   // ── CATCH-UP : appliqué au retour d'arrière-plan ──────────────────────────
-  // Utilise les refs (stables) pour éviter les closures périmées.
-  const applyCatchUp = useCallback((elapsedSec) => {
-    if (elapsedSec < 1) return;
+  // Important : on se base sur le dernier tick EFFECTIF (stockTickRef / chargeTickRef)
+  // et pas sur hiddenAt, car les ticks live continuent à tourner pendant ~30s
+  // avant que le navigateur ne suspende l'onglet (=> sinon double-comptage).
+  const applyCatchUp = useCallback(() => {
     const fr  = fillRateRef.current;
     const sm  = stockMaxRef.current;
     const bre = burnRateEffRef.current;
     const cme = chargeMaxEffRef.current;
     const st  = stateRef.current;
-
-    // Remplissage du stock (intrants)
-    if (fr > 0 && sm > 0) {
-      setStock(s => Math.min(sm, s + fr * elapsedSec));
-    }
-
-    // Digestion + production
-    if (bre > 0) {
-      setCharge(f => {
-        if (f <= 0.001) return 0;
-        const pct    = cme > 0 ? f / cme : 1;
-        const burn   = bre * elapsedSec * pct;
-        const actual = Math.min(f, burn);
-        const produced = actual * 0.006;
-        if (produced > 0) {
-          if (st.injected) {
-            const euroGain = produced * BM_TO_EUR;
-            if (st.gnvStations > 0 && st.gnvSplit > 0) {
-              const toGnv = produced * (st.gnvSplit / 100);
-              setBm(b => b + (produced - toGnv));
-              setGnvBm(b => b + toGnv);
-            } else {
-              setBm(b => b + produced);
-            }
-            setEuros(e => e + euroGain);
-          } else {
-            setBuffer(b => Math.min(INJECTION_THRESHOLD, b + produced));
-          }
-        }
-        return f - actual;
-      });
-    }
-
-    // Reset des refs de tick pour éviter le double-comptage
     const now = Date.now();
-    stockTickRef.current   = now;
-    chargeTickRef.current  = now;
+
+    // Stock : delta depuis le dernier tick effectif, avec régulation 80% (cohérence live)
+    if (fr > 0 && sm > 0) {
+      const dtStock = Math.min((now - stockTickRef.current) / 1000, 86400);
+      if (dtStock >= 1) {
+        stockTickRef.current = now;
+        setStock(s => {
+          if (s >= sm) return sm;
+          const threshold80 = sm * 0.8;
+          let cur = s;
+          let remaining = dtStock;
+          if (cur < threshold80) {
+            const toThreshold = threshold80 - cur;
+            const tFull = toThreshold / fr;
+            if (tFull >= remaining) return Math.min(sm, cur + fr * remaining);
+            cur = threshold80;
+            remaining -= tFull;
+          }
+          const toCap = sm - cur;
+          const tRegulated = toCap / (fr * 0.4);
+          if (remaining >= tRegulated) return sm;
+          return cur + fr * 0.4 * remaining;
+        });
+      }
+    }
+
+    // Digestion + production : delta depuis le dernier tick effectif
+    if (bre > 0) {
+      const dtCharge = Math.min((now - chargeTickRef.current) / 1000, 86400);
+      if (dtCharge >= 1) {
+        chargeTickRef.current = now;
+        setCharge(f => {
+          if (f <= 0.001) return 0;
+          const pct    = cme > 0 ? f / cme : 1;
+          const burn   = bre * dtCharge * pct;
+          const actual = Math.min(f, burn);
+          const produced = actual * 0.006;
+          if (produced > 0) {
+            if (st.injected) {
+              const euroGain = produced * BM_TO_EUR;
+              if (st.gnvStations > 0 && st.gnvSplit > 0) {
+                const toGnv = produced * (st.gnvSplit / 100);
+                setBm(b => b + (produced - toGnv));
+                setGnvBm(b => b + toGnv);
+              } else {
+                setBm(b => b + produced);
+              }
+              setEuros(e => e + euroGain);
+            } else {
+              setBuffer(b => Math.min(INJECTION_THRESHOLD, b + produced));
+            }
+          }
+          return f - actual;
+        });
+      }
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1074,10 +1116,9 @@ function Game({ username, region, maia }) {
         saveGame();
         hiddenAtRef.current = Date.now();
       } else if (hiddenAtRef.current) {
-        // Retour au premier plan → rattrapage immédiat
-        const elapsed = Math.min((Date.now() - hiddenAtRef.current) / 1000, 86400);
         hiddenAtRef.current = null;
-        if (elapsed >= 1) applyCatchUp(elapsed);
+        // Pas besoin de calculer elapsed ici : applyCatchUp utilise les refs de ticks
+        applyCatchUp();
       }
     };
     window.addEventListener('beforeunload', saveGame);
