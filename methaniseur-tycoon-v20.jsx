@@ -698,7 +698,9 @@ function Game({ username, region, maia }) {
   const calcOffline = (sv) => {
     if (!sv?.lastSaved) return null;
     const elapsedSec = Math.min((Date.now() - sv.lastSaved) / 1000, 86400);
-    if (elapsedSec < 60) return null;
+    // Seuil bas (5s) : avec fillRate élevé, un bac peut se remplir en quelques dizaines
+    // de secondes, donc tout délai > quelques secondes mérite catch-up.
+    if (elapsedSec < 5) return null;
 
     const ownedArr   = sv.owned || [0,0,0,0,0,0,0];
     const fr         = ownedArr.reduce((a,q,i) => a + UPGRADES[i].baseFill * q, 0);
@@ -784,7 +786,8 @@ function Game({ username, region, maia }) {
     };
   };
   const offlineGains = saved ? calcOffline(saved) : null;
-  const [offlineModal, setOfflineModal] = useState(!!offlineGains);
+  // Modal n'apparaît que pour les absences notables (>= 30s) pour éviter le spam
+  const [offlineModal, setOfflineModal] = useState(!!offlineGains && offlineGains.elapsedSec >= 30);
   const [cloudOfflineGains, setCloudOfflineGains] = useState(null);
   // Gains affichés dans le modal (prio localStorage, fallback cloud)
   const displayedGains = offlineGains || cloudOfflineGains;
@@ -900,10 +903,10 @@ function Game({ username, region, maia }) {
         if (d.auto_dump   != null) setAutoDump(!!d.auto_dump);
 
         // Si localStorage n'avait pas de gains mais le cloud en a (cross-device) →
-        // afficher le modal avec les gains cloud
+        // afficher le modal avec les gains cloud (uniquement si absence notable)
         if (cg && !offlineGains) {
           setCloudOfflineGains(cg);
-          setOfflineModal(true);
+          if (cg.elapsedSec >= 30) setOfflineModal(true);
         }
       }
     }).finally(() => setCloudSynced(true));
