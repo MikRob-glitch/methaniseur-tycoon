@@ -1,40 +1,3 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-  <meta name="theme-color" content="#0B1623"/>
-  <meta name="description" content="Méthaniseur Tycoon – Challenge interne GRDF 2025"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <link rel="manifest" href="manifest.json"/>
-  <title>Méthaniseur Tycoon – GRDF</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js" crossorigin></script>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    html,body{min-height:100%;width:100%}
-    body{background:#0B1623;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#EDF4FF;overscroll-behavior:none}
-    #err{display:none;position:fixed;inset:0;padding:20px;background:#0B1623;color:#E05858;font:12px/1.5 monospace;overflow:auto;z-index:9999;white-space:pre-wrap;word-break:break-word}
-    #err h2{color:#E8A020;margin-bottom:10px;font:bold 16px sans-serif}
-    #err button{margin-top:12px;padding:10px 20px;background:#4A9EDB;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer}
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <div id="err"><h2>⚠️ Erreur au chargement</h2><pre id="errmsg"></pre><button onclick="(async()=>{if('serviceWorker' in navigator){const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs)await r.unregister();}if('caches' in window){const ks=await caches.keys();for(const k of ks)await caches.delete(k);}localStorage.clear();location.reload(true);})()">🔄 Réinitialiser et recharger</button></div>
-  <script>
-    window.addEventListener('error', e => {
-      const el = document.getElementById('err'), msg = document.getElementById('errmsg');
-      if (el && msg) { msg.textContent = (e.message || e.error || e) + '\n\n' + (e.error?.stack || ''); el.style.display = 'block'; }
-    });
-    window.addEventListener('unhandledrejection', e => {
-      const el = document.getElementById('err'), msg = document.getElementById('errmsg');
-      if (el && msg) { msg.textContent = 'Promise rejection: ' + (e.reason?.message || e.reason); el.style.display = 'block'; }
-    });
-  </script>
-  <script type="text/babel" data-presets="react">
 // Source de vérité — Méthaniseur Tycoon v22
 // Workflow : modifier ce fichier → envoyer à Claude → Claude génère index.html compilé
 const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
@@ -4612,22 +4575,3 @@ function RankingTab({
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  React.createElement(ThemeProvider, null, React.createElement(App, null))
-);
-  </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', async () => {
-        try {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          for (const reg of regs) {
-            if (!reg.active || !reg.active.scriptURL.endsWith('/sw.js')) await reg.unregister();
-          }
-          await navigator.serviceWorker.register('./sw.js', { scope: './' });
-        } catch (e) { console.warn('SW error:', e); }
-      });
-    }
-  </script>
-</body>
-</html>
