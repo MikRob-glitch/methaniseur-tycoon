@@ -1114,7 +1114,6 @@ function Game({ username, region, maia }) {
   const showCinematic = (key, data={}) => setCinematic({ key, data });
 
   // ── TICKS (timestamp-based for sleep/background catch-up) ────────────────
-  const stockTickRef = useRef(Date.now());
   useEffect(()=>{
     if (fillRate<=0) return;
     stockTickRef.current = Date.now();
@@ -1127,7 +1126,6 @@ function Game({ username, region, maia }) {
     return ()=>clearInterval(id);
   },[fillRate,fillPenalty]);
 
-  const chargeTickRef = useRef(Date.now());
   useEffect(()=>{
     if (burnRateEff<=0) return;
     chargeTickRef.current = Date.now();
