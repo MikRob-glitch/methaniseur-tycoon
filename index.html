@@ -15,11 +15,34 @@
   <style>
     *{margin:0;padding:0;box-sizing:border-box}
     html,body,#root{height:100%;width:100%;overflow:hidden}
-    body{background:#0B1623;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    body{background:#0B1623;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#EDF4FF}
+    #err{display:none;position:fixed;inset:0;padding:20px;background:#0B1623;color:#E05858;font:12px/1.5 monospace;overflow:auto;z-index:9999;white-space:pre-wrap;word-break:break-word}
+    #err h2{color:#E8A020;margin-bottom:10px;font:bold 16px sans-serif}
+    #err button{margin-top:12px;padding:10px 20px;background:#4A9EDB;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer}
   </style>
 </head>
 <body>
   <div id="root"></div>
+  <div id="err"><h2>⚠️ Erreur au chargement</h2><pre id="errmsg"></pre><button onclick="(async()=>{if('serviceWorker' in navigator){const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs)await r.unregister();}if('caches' in window){const ks=await caches.keys();for(const k of ks)await caches.delete(k);}localStorage.clear();location.reload(true);})()">🔄 Réinitialiser et recharger</button></div>
+  <script>
+    // ── Error handler global : affiche toute erreur fatale ───────────────────
+    window.addEventListener('error', e => {
+      const el = document.getElementById('err');
+      const msg = document.getElementById('errmsg');
+      if (el && msg) {
+        msg.textContent = (e.message || e.error || e) + '\n\n' + (e.error?.stack || '');
+        el.style.display = 'block';
+      }
+    });
+    window.addEventListener('unhandledrejection', e => {
+      const el = document.getElementById('err');
+      const msg = document.getElementById('errmsg');
+      if (el && msg) {
+        msg.textContent = 'Promise rejection: ' + (e.reason?.message || e.reason);
+        el.style.display = 'block';
+      }
+    });
+  </script>
   <script type="text/babel" data-presets="react">
 // Source de vérité — Méthaniseur Tycoon v16
 // Workflow : modifier ce fichier → envoyer à Claude → Claude génère index.html compilé
@@ -4323,9 +4346,21 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 );
   </script>
   <script>
+    // ── Service Worker : désinstalle les anciens puis enregistre le nouveau ──
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js', { scope: './' });
+      window.addEventListener('load', async () => {
+        try {
+          // Vire tous les SW actifs (workbox-ancien-build inclus)
+          const regs = await navigator.serviceWorker.getRegistrations();
+          for (const reg of regs) {
+            // Si c'est un ancien SW (workbox ou autre), on le dégage
+            if (!reg.active || !reg.active.scriptURL.endsWith('/sw.js')) {
+              await reg.unregister();
+            }
+          }
+          // Enregistre le nouveau SW simple
+          await navigator.serviceWorker.register('./sw.js', { scope: './' });
+        } catch (e) { console.warn('SW error:', e); }
       });
     }
   </script>
