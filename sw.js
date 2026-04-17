@@ -1,10 +1,16 @@
-const CACHE_NAME = 'methaniseur-tycoon-v16';
-const ASSETS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
+const CACHE_NAME = 'methaniseur-tycoon-v19';
+const ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE_NAME).then(c => c.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(c => c.addAll(ASSETS).catch(() => {}))
   );
 });
 
@@ -18,12 +24,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  if (e.request.url.includes('supabase.co')) return;
+  if (e.request.url.includes('supabase.co')) return; // toujours live pour le leaderboard
   e.respondWith(
-    fetch(e.request).then(r => {
-      const clone = r.clone();
-      caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
-      return r;
-    }).catch(() => caches.match(e.request))
+    caches.match(e.request).then(cached => cached || fetch(e.request))
   );
 });
