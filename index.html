@@ -849,8 +849,7 @@ function Game({ username, region, maia }) {
     } else {
       lines.push(`calcOffline: NULL`);
     }
-    return lines.join('
-');
+    return lines.join('\n');
   });
   const [debugOpen, setDebugOpen] = useState(false);
   // Gains affichés dans le modal (prio localStorage, fallback cloud)
@@ -1574,35 +1573,21 @@ function Game({ username, region, maia }) {
             <strong style={{color:"#E8A020",fontSize:"14px"}}>🐞 DEBUG PANEL</strong>
             <button onClick={()=>setDebugOpen(false)} style={{background:"none",border:"none",color:"#E05858",fontSize:"18px",cursor:"pointer"}}>✕</button>
           </div>
-          <div><strong style={{color:"#E8A020"}}>--- INIT TRACE ---</strong>{"
-"}{debugInfo}</div>
-          <div style={{marginTop:"12px"}}><strong style={{color:"#E8A020"}}>--- LIVE STATE ---</strong>{"
-"}
-            stock: {stock.toFixed(2)} / {stockMax.toFixed(0)} ({stockMax>0?(stock/stockMax*100).toFixed(1):0}%){"
-"}
-            charge: {charge.toFixed(2)} / {chargeMaxEff.toFixed(0)}{"
-"}
-            fillRate: {fillRate.toFixed(2)} m³/s{"
-"}
-            fillPenalty: {fillPenalty.toFixed(2)}{"
-"}
-            owned: [{owned.join(',')}]{"
-"}
-            buffer: {buffer.toFixed(2)}{"
-"}
-            cloudSynced: {String(cloudSynced)}{"
-"}
+          <div><strong style={{color:"#E8A020"}}>--- INIT TRACE ---</strong>{"\n"}{debugInfo}</div>
+          <div style={{marginTop:"12px"}}><strong style={{color:"#E8A020"}}>--- LIVE STATE ---</strong>{"\n"}
+            stock: {stock.toFixed(2)} / {stockMax.toFixed(0)} ({stockMax>0?(stock/stockMax*100).toFixed(1):0}%){"\n"}
+            charge: {charge.toFixed(2)} / {chargeMaxEff.toFixed(0)}{"\n"}
+            fillRate: {fillRate.toFixed(2)} m³/s{"\n"}
+            fillPenalty: {fillPenalty.toFixed(2)}{"\n"}
+            owned: [{owned.join(',')}]{"\n"}
+            buffer: {buffer.toFixed(2)}{"\n"}
+            cloudSynced: {String(cloudSynced)}{"\n"}
           </div>
           <button onClick={()=>{
             const sv = JSON.parse(localStorage.getItem(SAVE_KEY)||'null');
             const now = Date.now();
             const elapsed = sv?.lastSaved ? ((now-sv.lastSaved)/1000).toFixed(1) : 'N/A';
-            alert(`localStorage NOW:
-lastSaved: ${sv?.lastSaved ? new Date(sv.lastSaved).toLocaleTimeString() : 'NULL'}
-elapsed: ${elapsed}s
-stock: ${sv?.stock?.toFixed(1)}
-charge: ${sv?.charge?.toFixed(1)}
-owned: [${(sv?.owned||[]).join(',')}]`);
+            alert(`localStorage NOW:\nlastSaved: ${sv?.lastSaved ? new Date(sv.lastSaved).toLocaleTimeString() : 'NULL'}\nelapsed: ${elapsed}s\nstock: ${sv?.stock?.toFixed(1)}\ncharge: ${sv?.charge?.toFixed(1)}\nowned: [${(sv?.owned||[]).join(',')}]`);
           }} style={{marginTop:"12px",padding:"8px 14px",background:"#4A9EDB",color:"#fff",border:"none",borderRadius:"6px",cursor:"pointer",fontWeight:700}}>📋 Lire localStorage NOW</button>
           <button onClick={()=>{
             // Force save
@@ -4504,6 +4489,7 @@ function RankingTab({
     </div>
   );
 }
+
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   React.createElement(ThemeProvider, null, React.createElement(App, null))
