@@ -730,7 +730,10 @@ function Game({ username, region, maia }) {
     }
 
     const produced = availableToDigest * 0.006;
-    if (produced < 0.01) return null;
+    // On retourne un résultat même si la production est nulle, du moment qu'il y a
+    // eu un gain de stock → évite de perdre le remplissage offline quand le digesteur
+    // était vide au moment de la fermeture.
+    if (produced < 0.01 && stockGained < 1) return null;
 
     // ── Gains par filière ─────────────────────────────────────────────────────
     const inj        = sv.injected || false;
@@ -1416,26 +1419,34 @@ function Game({ username, region, maia }) {
           <div style={{background:isL?"#FFFFFF":"#162436",border:"1px solid "+(isL?"rgba(25,75,150,.2)":"rgba(74,158,219,.3)"),borderRadius:"20px",padding:"28px 24px",maxWidth:"320px",width:"100%",animation:"riseIn .4s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{textAlign:"center",marginBottom:"16px"}}>
               <div style={{fontSize:"40px",marginBottom:"8px"}}>⏰</div>
-              <div style={{fontSize:"17px",fontWeight:800,color:isL?"#0C1A2E":"#EDF4FF"}}>Production hors-ligne</div>
+              <div style={{fontSize:"17px",fontWeight:800,color:isL?"#0C1A2E":"#EDF4FF"}}>
+                {offlineGains.produced >= 0.01 ? "Production hors-ligne" : "Approvisionnement hors-ligne"}
+              </div>
               <div style={{fontSize:"12px",marginTop:"4px",color:isL?"#3A5270":"rgba(160,200,240,.65)"}}>
                 Absence : {offlineGains.elapsedSec>=3600?`${Math.floor(offlineGains.elapsedSec/3600)}h ${Math.round((offlineGains.elapsedSec%3600)/60)}min`:`${Math.round(offlineGains.elapsedSec/60)} min`}
               </div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:"8px",marginBottom:"16px"}}>
-              <div style={{background:"rgba(74,158,219,.1)",border:"1px solid rgba(74,158,219,.25)",borderRadius:"12px",padding:"14px 16px",textAlign:"center"}}>
-                <div style={{fontSize:"11px",fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(160,200,240,.65)",marginBottom:"4px"}}>Biométhane produit</div>
-                <div style={{fontSize:"26px",fontWeight:800,color:"#4A9EDB"}}>+{fmt(offlineGains.produced)}</div>
-                <div style={{fontSize:"10px",marginTop:"3px",color:"rgba(120,165,210,.42)"}}>→ {offlineGains.injected?"réseau GRDF":"cuve tampon"}</div>
-              </div>
+              {offlineGains.produced >= 0.01 && (
+                <div style={{background:"rgba(74,158,219,.1)",border:"1px solid rgba(74,158,219,.25)",borderRadius:"12px",padding:"14px 16px",textAlign:"center"}}>
+                  <div style={{fontSize:"11px",fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(160,200,240,.65)",marginBottom:"4px"}}>Biométhane produit</div>
+                  <div style={{fontSize:"26px",fontWeight:800,color:"#4A9EDB"}}>+{fmt(offlineGains.produced)}</div>
+                  <div style={{fontSize:"10px",marginTop:"3px",color:"rgba(120,165,210,.42)"}}>→ {offlineGains.injected?"réseau GRDF":"cuve tampon"}</div>
+                </div>
+              )}
               {offlineGains.eurosGained > 0 && (
                 <div style={{background:"rgba(232,160,32,.1)",border:"1px solid rgba(232,160,32,.25)",borderRadius:"12px",padding:"12px 16px",textAlign:"center"}}>
                   <div style={{fontSize:"10px",fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(232,160,32,.65)",marginBottom:"3px"}}>Revenus GRDF</div>
                   <div style={{fontSize:"22px",fontWeight:800,color:"#E8A020"}}>+{fmtEuro(offlineGains.eurosGained)}</div>
                 </div>
               )}
-              {offlineGains.stockGained > 0 && (
-                <div style={{background:"rgba(39,168,90,.08)",border:"1px solid rgba(39,168,90,.2)",borderRadius:"12px",padding:"10px 16px",textAlign:"center"}}>
-                  <div style={{fontSize:"10px",color:"rgba(160,200,240,.5)"}}>📦 Stock intrants chargé : <strong style={{color:"#4ADB94"}}>+{fmtT(offlineGains.stockGained)}</strong></div>
+              {offlineGains.stockGained >= 1 && (
+                <div style={{background:"rgba(39,168,90,.08)",border:"1px solid rgba(39,168,90,.2)",borderRadius:"12px",padding:"12px 16px",textAlign:"center"}}>
+                  <div style={{fontSize:"10px",fontWeight:600,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(39,168,90,.65)",marginBottom:"3px"}}>📦 Bac d'intrants chargé</div>
+                  <div style={{fontSize:"22px",fontWeight:800,color:"#4ADB94"}}>+{fmtT(offlineGains.stockGained)}</div>
+                  {offlineGains.produced < 0.01 && (
+                    <div style={{fontSize:"10px",marginTop:"3px",color:"rgba(120,165,210,.42)"}}>Pense à déverser dans le digesteur 🛢️</div>
+                  )}
                 </div>
               )}
             </div>
